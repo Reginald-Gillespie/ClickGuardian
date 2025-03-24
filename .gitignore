@@ -5,3 +5,5 @@ obj/
 .vs
 .vscode
 ClickGuardian.csproj.user
+build
+ClickGuardian.zip
