@@ -2,3 +2,6 @@ bin
 obj/
 .Old/
 .OldPrograms/
+.vs
+.vscode
+ClickGuardian.csproj.user
