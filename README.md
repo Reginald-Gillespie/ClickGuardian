@@ -20,6 +20,9 @@ Are you tired of unlimited, reckless clicking? Do you believe in a more structur
 
 Join the **movement** towards a more responsible, pay-as-you-click future!
 
+![](imgs/popup.png)
+
+
 ---
 
 <br>
