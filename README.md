@@ -35,5 +35,7 @@ Ok, actually. ClickGuardian is a prank program designed to troll your friends an
 
 You can configure whether the program actually blocks clicks, how long it takes for the "Remind Me Later" button to disappear, and more.
 
+ClickGuardian.exe will automatically register itself to run at boot.
+
 
 **Warning:** Insert general disclaimer in legalese saying how I am not responsible for anything harmful done with this, etc.

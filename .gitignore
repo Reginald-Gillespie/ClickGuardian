@@ -6,4 +6,5 @@ obj/
 .vscode
 ClickGuardian.csproj.user
 build
+publish
 ClickGuardian.zip
