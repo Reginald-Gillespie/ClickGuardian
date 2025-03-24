@@ -100,7 +100,7 @@ namespace ClickLimiter {
 
             // Center the title text
             upgradeRequiredLabel.Location = new Point(10, (headerPanel.Height - upgradeRequiredLabel.Height) / 2);
-            limitReachedLabel.Location = new Point(upgradeRequiredLabel.Right + ScaleSize(10),
+            limitReachedLabel.Location = new Point(upgradeRequiredLabel.Right + ScaleSize(5),
                                                   (headerPanel.Height - limitReachedLabel.Height) / 2);
 
             // Subtext
@@ -112,23 +112,56 @@ namespace ClickLimiter {
                 AutoSize = true
             };
 
+            // Fix #1: Ensure consistent spacing regardless of DPI scaling
+            // Add more buffer space between the text and plan cards
+            int subscriptionPanelY = subtext.Bottom + ScaleSize(30);
+
             // Subscription cards panel
             Panel subscriptionCardsPanel = new Panel() {
-                Location = new Point(20, subtext.Bottom + ScaleSize(10)),
+                Location = new Point(20, subscriptionPanelY),
                 BackColor = Color.Transparent
             };
 
-            // Add plan cards
-            int cardX = 0;
-            int cardSpacing = ScaleSize(10);
-            int totalCardHeight = 0;
-
+            // Create the plan cards first to determine the tallest card
+            List<Panel> cardPanels = new List<Panel>();
+            List<Button> upgradeButtons = new List<Button>();
+            int maxCardContentHeight = 0;
+            
             foreach (var plan in _plans) {
-                Panel card = CreatePlanCard(plan);
+                // Create the card but don't set final height yet
+                Panel card = CreatePlanCard(plan, out Button upgradeButton, out int contentHeight);
+                cardPanels.Add(card);
+                upgradeButtons.Add(upgradeButton);
+                maxCardContentHeight = Math.Max(maxCardContentHeight, contentHeight);
+            }
+
+            // Add plan cards with equal height and aligned buttons
+            int cardX = 0;
+            int cardWidth = ScaleSize(280);
+            int cardSpacing = ScaleSize(10);
+            int buttonHeight = ScaleSize(30);
+            int buttonMargin = ScaleSize(10);
+            
+            // Calculate total card height including button and margins
+            int totalCardHeight = maxCardContentHeight + buttonHeight + (2 * buttonMargin);
+
+            for (int i = 0; i < cardPanels.Count; i++) {
+                Panel card = cardPanels[i];
+                Button button = upgradeButtons[i];
+                
+                // Set the same total height for all cards
+                card.Height = totalCardHeight;
+                card.Width = cardWidth;
                 card.Location = new Point(cardX, 0);
+                
+                // Fix #2: Position the button at the bottom of the card
+                button.Location = new Point(
+                    buttonMargin, 
+                    totalCardHeight - buttonHeight - buttonMargin
+                );
+                
                 subscriptionCardsPanel.Controls.Add(card);
                 cardX += card.Width + cardSpacing;
-                totalCardHeight = Math.Max(totalCardHeight, card.Height);
             }
 
             subscriptionCardsPanel.Size = new Size(cardX - cardSpacing, totalCardHeight);
@@ -193,14 +226,13 @@ namespace ClickLimiter {
             this.Controls.Add(remindLaterButton);
 
             // Resize form to fit all controls
-            // this.Height = remindLaterButton.Bottom + ScaleSize(40);
             this.Height = remindLaterButton.Bottom + ScaleSize(20);
 
             // Ensure width is sufficient for all elements
             this.Width = Math.Max(this.Width, mouseImage.Right + ScaleSize(20));
         }
 
-        private Panel CreatePlanCard(PlanData plan) {
+        private Panel CreatePlanCard(PlanData plan, out Button upgradeButton, out int contentHeight) {
             Panel card = new Panel() {
                 Size = ScaleSize(new Size(280, 240)), // Start with a height that we'll adjust
                 BackColor = Color.FromArgb(40, 40, 40),
@@ -256,10 +288,16 @@ namespace ClickLimiter {
                 Text = $"/{plan.PricePer}",
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", ScaleFont(10)),
-                Location = new Point(priceLabel.Right, priceLabel.Top + ScaleSize(4)), // Align with the price
                 AutoSize = true
             };
             card.Controls.Add(pricePerLabel);
+            
+            // Position at the bottom of the price label instead of at the top
+            pricePerLabel.Location = new Point(
+                priceLabel.Right,
+                priceLabel.Bottom - pricePerLabel.Height - ScaleSize(2)
+            );
+            
             currentY = priceLabel.Bottom + ScaleSize(10);
 
             int featureX = ScaleSize(10);
@@ -288,10 +326,13 @@ namespace ClickLimiter {
                 currentY += featureLabel.Height + ScaleSize(8);
             }
 
-            Button upgradeButton = new Button() {
+            // Save the content height before adding the button
+            contentHeight = currentY;
+
+            // Create the upgrade button but don't position it yet
+            upgradeButton = new Button() {
                 Text = $"Upgrade to {plan.Name.Replace(" Plan", "")}",
                 Size = new Size(card.Width - ScaleSize(20), ScaleSize(30)),
-                Location = new Point(ScaleSize(10), currentY + ScaleSize(10)),
                 BackColor = plan.ButtonColor,
                 ForeColor = plan.ButtonTextColor,
                 FlatStyle = FlatStyle.Flat,
@@ -308,10 +349,7 @@ namespace ClickLimiter {
             };
 
             card.Controls.Add(upgradeButton);
-
-            // Adjust card height to fit content
-            card.Height = upgradeButton.Bottom + ScaleSize(10);
-
+            
             return card;
         }
 
