@@ -10,7 +10,7 @@ namespace ClickLimiter {
         static void Main() {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+            // Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
 
             // Force smooth text rendering globally
             Application.Run(new ClickMonitor());
