@@ -113,7 +113,7 @@ namespace ClickLimiter {
             }
         };
 
-        public LimitReachedForm(int clickLimit, int unlockTime) {
+        public LimitReachedForm(int clickLimit, int unlockTime, bool redirectToGithub) {
             _unlockTime = unlockTime;
             _remainingTime = unlockTime / 1000;
 
@@ -152,16 +152,16 @@ namespace ClickLimiter {
             // Handle DPI changes
             this.DpiChanged += (s, e) => {
                 _dpiScaleFactor = e.DeviceDpiNew / 96.0f;
-                RebuildUI(clickLimit);
+                RebuildUI(clickLimit, redirectToGithub);
             };
 
             // Build the UI
-            RebuildUI(clickLimit);
+            RebuildUI(clickLimit, redirectToGithub);
 
             this.FormClosing += (s, e) => _allowClicks = true;
         }
 
-        private void RebuildUI(int clickLimit) {
+        private void RebuildUI(int clickLimit, bool redirectToGithub) {
             // Clear existing controls
             this.Controls.Clear();
 
@@ -221,7 +221,7 @@ namespace ClickLimiter {
 
             foreach (var plan in _plans) {
                 // Create the card but don't set final height yet
-                Panel card = CreatePlanCard(plan, out Button upgradeButton, out int contentHeight);
+                Panel card = CreatePlanCard(plan, redirectToGithub, out Button upgradeButton, out int contentHeight);
                 cardPanels.Add(card);
                 upgradeButtons.Add(upgradeButton);
                 maxCardContentHeight = Math.Max(maxCardContentHeight, contentHeight);
@@ -344,7 +344,7 @@ namespace ClickLimiter {
             this.Width = Math.Max(this.Width, mouseImage.Right + ScaleSize(20));
         }
 
-        private Panel CreatePlanCard(PlanData plan, out Button upgradeButton, out int contentHeight) {
+        private Panel CreatePlanCard(PlanData plan, bool redirectToGithub, out Button upgradeButton, out int contentHeight) {
             Panel card = new Panel() {
                 Size = ScaleSize(new Size(280, 240)), // Start with a height that we'll adjust
                 BackColor = Color.FromArgb(40, 40, 40),
@@ -455,10 +455,9 @@ namespace ClickLimiter {
             upgradeButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(plan.ButtonColor, 0.2f);
 
             upgradeButton.Click += (s, e) => {
-                // MessageBox.Show($"Congratulations! You have subscribed to our {plan.Name}.\nEnjoy your premium mouse experience!",
-                //                 "Subscription Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                OpenUrl("https://example.com/");
+                if (redirectToGithub) {
+                    OpenUrl("https://github.com/Reginald-Gillespie/ClickGuardian");
+                }
                 OnLimitReset?.Invoke();
                 this.Close();
             };
