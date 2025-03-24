@@ -31,11 +31,29 @@ Join the **movement** towards a more responsible, pay-as-you-click future!
 
 ## Wait, Wut?
 
-Ok, actually. ClickGuardian is a prank program designed to troll your friends and colleagues by tacking their mouse clicks and displaying a paywall when they surpass a configured limit. I recommend only blocking clicks for those who know how to use Task Manager.
+Ok, actually. ClickGuardian is a prank program designed to troll your friends and colleagues by tacking their mouse clicks and displaying a paywall when they surpass a configured limit. It is 100% free.
 
-You can configure whether the program actually blocks clicks, how long it takes for the "Remind Me Later" button to disappear, and more.
+ClickGuardian can:
+- Register itself to run at startup
+- Count mouse clicks globally, per month
+- Present a paywall
+- Block clicks past the configured limit
 
-ClickGuardian.exe will automatically register itself to run at boot.
+<br>
 
+Under `config.json`, you can change these fields:
+- `ClickLimit` - The amount of clicks to allow per month.
+- `GracePeriod` - The amount of clicks to allow after clicking "Remind Me Later". It would be very mean to set this to 0.
+- `UnlockTime` - The time in milliseconds to delay after clicking "Remind Me Later"
+- `BlockClicks` - Whether to actually block using the mouse.
+- `ShowTrayIcon` - Whether to show the application icon in the tray.
+- `ShowExitButton` - Whether to show a nice "Exit" button on the tray icon. Requires `ShowTrayIcon`.
+- `RegisterForReboot` - Whether to rerun itself at next reboot.
+
+<br>
+<br>
+<br>
+
+Just want to see what it looks like? Set the config to allow 5 clicks, run it, click 5 times.
 
 **Warning:** Insert general disclaimer in legalese saying how I am not responsible for anything harmful done with this, etc.

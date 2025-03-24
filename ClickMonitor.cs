@@ -19,6 +19,8 @@ namespace ClickLimiter {
         public int CurrentClickCount { get; set; } = 0;
         public int LastResetYear { get; set; } = DateTime.Now.Year;
         public int LastResetMonth { get; set; } = DateTime.Now.Month;
+        public bool RegisterForReboot { get; set; } = true;
+        public bool RedirectToGithub { get; set; } = true;
     }
 
     public class ClickMonitor : ApplicationContext {
@@ -33,6 +35,8 @@ namespace ClickLimiter {
         private bool _showTrayIcon;
         private bool _showExitButton;
         private int _gracePeriod;
+        private bool _registerForReboot;
+        private bool _redirectToGithub;
         private NotifyIcon _notifyIcon;
         private IntPtr _hookId = IntPtr.Zero;
         private LowLevelMouseProc _proc;
@@ -44,6 +48,13 @@ namespace ClickLimiter {
 
         private const string StartupKeyName = "ClickGuardian";
 
+        private void RemoveStartup() {
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true)) {
+                if (key != null) {
+                    key.DeleteValue(StartupKeyName, false);
+                }
+            }
+        }
         private void EnsureStartup() {
             string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
 
@@ -63,7 +74,7 @@ namespace ClickLimiter {
 
             _notifyIcon = new NotifyIcon {
                 Icon = new Icon("assets/tray.ico"),
-                Text = $"ClickGuardian ({_clickCount}/{_clickLimit})",
+                Text = $"ClickGuardian | {_clickCount}/{_clickLimit} clicks",
                 Visible = _showTrayIcon
             };
 
@@ -82,6 +93,7 @@ namespace ClickLimiter {
                 try {
                     string json = File.ReadAllText(_configFilePath);
                     _settings = JsonConvert.DeserializeObject<AppSettings>(json);
+
                     // Check if the month has changed since the last reset
                     var now = DateTime.Now;
                     if (_settings.LastResetYear != now.Year || _settings.LastResetMonth != now.Month) {
@@ -97,6 +109,14 @@ namespace ClickLimiter {
                     _showTrayIcon = _settings.ShowTrayIcon;
                     _showExitButton = _settings.ShowExitButton;
                     _gracePeriod = _settings.GracePeriod;
+
+                    //LOAD NEW SETTINGS:
+                    _registerForReboot = _settings.RegisterForReboot;
+                    _redirectToGithub = _settings.RedirectToGithub;
+
+                    if (_registerForReboot) EnsureStartup();
+                    else RemoveStartup();
+
                 } catch (Exception ex) {
                     MessageBox.Show($"Error loading settings: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     _settings = new AppSettings();
@@ -107,6 +127,13 @@ namespace ClickLimiter {
                     _showTrayIcon = _settings.ShowTrayIcon;
                     _showExitButton = _settings.ShowExitButton;
                     _gracePeriod = _settings.GracePeriod;
+
+                    //LOAD NEW SETTINGS:
+                    _registerForReboot = _settings.RegisterForReboot;
+                    _redirectToGithub = _settings.RedirectToGithub;
+
+                    if (_registerForReboot) EnsureStartup();
+                    else RemoveStartup();
                 }
             } else {
                 _settings = new AppSettings();
@@ -117,10 +144,16 @@ namespace ClickLimiter {
                 _showTrayIcon = _settings.ShowTrayIcon;
                 _showExitButton = _settings.ShowExitButton;
                 _gracePeriod = _settings.GracePeriod;
+
+                //LOAD NEW SETTINGS:
+                _registerForReboot = _settings.RegisterForReboot;
+                _redirectToGithub = _settings.RedirectToGithub;
+
+                if (_registerForReboot) EnsureStartup();
+                else RemoveStartup();
                 SaveSettings();
             }
         }
-
         private void SaveSettings() {
             try {
                 string json = JsonConvert.SerializeObject(_settings, Formatting.Indented);
@@ -187,7 +220,7 @@ namespace ClickLimiter {
                 SaveSettings(); // Save the updated click count
 
                 if (_showTrayIcon) {
-                    _notifyIcon.Text = $"ClickGuardian ({_clickCount}/{_clickLimit})";
+                    _notifyIcon.Text = $"ClickGuardian | {_clickCount}/{_clickLimit} clicks";
                 }
 
                 if (_blockingClicks && _blockClicks) {
@@ -208,7 +241,7 @@ namespace ClickLimiter {
 
         private void ShowLimitReachedDialog() {
             if (_limitForm == null || _limitForm.IsDisposed) {
-                _limitForm = new LimitReachedForm(_clickLimit, _unlockTime);
+                _limitForm = new LimitReachedForm(_clickLimit, _unlockTime, _redirectToGithub);
                 _limitForm.OnLimitReset += () => {
                     _blockingClicks = false;
                     _clickCount = Math.Max(0, _clickLimit - _gracePeriod); // Apply GracePeriod

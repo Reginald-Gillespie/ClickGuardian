@@ -1,11 +1,13 @@
 {
   "ClickLimit": 5,
-  "GracePeriod": 5,
-  "UnlockTime": 3000,
+  "GracePeriod": 300,
+  "UnlockTime": 5000,
   "BlockClicks": true,
   "ShowTrayIcon": true,
-  "ShowExitButton": false,
-  "CurrentClickCount": 4,
-  "LastResetYear": 2025,
-  "LastResetMonth": 3
+  "ShowExitButton": true,
+  "RegisterForReboot": true,
+  "RedirectToGithub": true,
+  "CurrentClickCount": 0,
+  "LastResetYear": 0,
+  "LastResetMonth": 0
 }
