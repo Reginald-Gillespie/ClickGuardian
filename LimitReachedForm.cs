@@ -1,4 +1,3 @@
-// LimitReachedForm.cs
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -10,15 +9,15 @@ namespace ClickLimiter {
         private bool _allowClicks = false;
         private int _unlockTime;
         private Image _arrowImage;
+        private float _dpiScaleFactor = 1.0f;
 
-        // Centralized plan data
         private List<PlanData> _plans = new List<PlanData>() {
             new PlanData {
                 Name = "Standard Plan",
                 Price = "10.99",
                 PricePer = "month",
                 Features = new List<string> { "10,000 clicks per month", "1,000 meters of mouse wheel usage per month", "Adjustable button mappings", "Basic support" },
-                ButtonColor = Color.FromArgb(64, 64, 64), // Darker Grey
+                ButtonColor = Color.FromArgb(64, 64, 64),
                 ButtonTextColor = Color.White
             },
             new PlanData {
@@ -26,7 +25,7 @@ namespace ClickLimiter {
                 Price = "17.99",
                 PricePer = "month",
                 Features = new List<string> { "Unlimited clicks", "Unlimited mouse wheel usage", "Custom button mappings", "Priority support" },
-                ButtonColor = Color.FromArgb(0, 150, 136),  // Teal
+                ButtonColor = Color.FromArgb(0, 150, 136),
                 ButtonTextColor = Color.White,
                 HasCrown = true
             }
@@ -34,87 +33,147 @@ namespace ClickLimiter {
 
         public LimitReachedForm(int clickLimit, int unlockTime) {
             _unlockTime = unlockTime;
-            _arrowImage = Image.FromFile("assets/arrow.png");
 
-            // Window properties
+            // Set DPI awareness
+            this.AutoScaleDimensions = new SizeF(96F, 96F);
+            this.AutoScaleMode = AutoScaleMode.Dpi;
+
+            // Calculate DPI scale factor
+            using (Graphics g = this.CreateGraphics()) {
+                _dpiScaleFactor = g.DpiX / 96.0f;
+            }
+
+            // Load assets
+            try {
+                _arrowImage = Image.FromFile("assets/arrow.png");
+            } catch (Exception) {
+                // Fallback if image not found
+                _arrowImage = new Bitmap(16, 16);
+            }
+
             this.FormBorderStyle = FormBorderStyle.None;
-            this.Size = new Size(880, 400); // Initial size, height adjusted later
+            this.Size = ScaleSize(new Size(880, 400));
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(30, 30, 30);
             this.TopMost = true;
 
-            // Title (Header)
+            // Handle DPI changes
+            this.DpiChanged += (s, e) => {
+                _dpiScaleFactor = e.DeviceDpiNew / 96.0f;
+                RebuildUI(clickLimit);
+            };
+
+            // Build the UI
+            RebuildUI(clickLimit);
+
+            this.FormClosing += (s, e) => _allowClicks = true;
+        }
+
+        private void RebuildUI(int clickLimit) {
+            // Clear existing controls
+            this.Controls.Clear();
+
+            // Header
             Panel headerPanel = new Panel() {
-                Size = new Size(this.Width, 60),
-                Location = new Point(0, 0),
+                Size = ScaleSize(new Size(this.Width, 60)),
+                Location = ScalePoint(new Point(0, 0)),
                 BackColor = Color.FromArgb(45, 45, 45)
             };
+
+            Font headerFont = new Font("Segoe UI", ScaleFont(14), FontStyle.Bold);
             Label upgradeRequiredLabel = new Label() {
                 Text = "Upgrade Required:",
-                ForeColor = Color.White, // Changed to white for readability
-                Font = new Font("Segoe UI", 14, FontStyle.Bold),
-                Location = new Point(20, 15),
+                ForeColor = Color.White,
+                Font = headerFont,
                 AutoSize = true
             };
+
             Label limitReachedLabel = new Label() {
                 Text = "Monthly Click Limit Reached",
-                ForeColor = Color.FromArgb(120, 120, 120), // Lighter grey
-                Font = new Font("Segoe UI", 14, FontStyle.Bold),
-                Location = new Point(upgradeRequiredLabel.Right + 5, 15),
+                ForeColor = Color.FromArgb(120, 120, 120),
+                Font = headerFont,
                 AutoSize = true
             };
+
             headerPanel.Controls.Add(upgradeRequiredLabel);
             headerPanel.Controls.Add(limitReachedLabel);
+
+            // Center the title text
+            upgradeRequiredLabel.Location = new Point(10, (headerPanel.Height - upgradeRequiredLabel.Height) / 2);
+            limitReachedLabel.Location = new Point(upgradeRequiredLabel.Right + ScaleSize(10),
+                                                  (headerPanel.Height - limitReachedLabel.Height) / 2);
 
             // Subtext
             Label subtext = new Label() {
                 Text = $"You have reached the maximum number of clicks allowed ({clickLimit}).\nTo continue using your mouse, please upgrade to a plan.",
-                ForeColor = Color.FromArgb(200, 200, 200), // Slightly less white, more light grey
-                Font = new Font("Segoe UI", 9),
-                Location = new Point(20, headerPanel.Bottom + 10),
+                ForeColor = Color.FromArgb(200, 200, 200),
+                Font = new Font("Segoe UI", ScaleFont(9)),
+                Location = new Point(20, headerPanel.Bottom + ScaleSize(20)),
                 AutoSize = true
             };
 
             // Subscription cards panel
             Panel subscriptionCardsPanel = new Panel() {
-                Size = new Size(580, 260), // Width for two cards, height adjusted later
-                Location = new Point(20, subtext.Bottom + 20), // Increased buffer
+                Location = new Point(20, subtext.Bottom + ScaleSize(10)),
                 BackColor = Color.Transparent
             };
 
-            // Create subscription cards side-by-side
+            // Add plan cards
             int cardX = 0;
-            int cardSpacing = 10;
+            int cardSpacing = ScaleSize(10);
             int totalCardHeight = 0;
+
             foreach (var plan in _plans) {
-                Panel card = CreatePlanCard(plan, 0);
+                Panel card = CreatePlanCard(plan);
                 card.Location = new Point(cardX, 0);
                 subscriptionCardsPanel.Controls.Add(card);
                 cardX += card.Width + cardSpacing;
                 totalCardHeight = Math.Max(totalCardHeight, card.Height);
             }
-            subscriptionCardsPanel.Height = totalCardHeight;
-            subscriptionCardsPanel.Width = cardX - cardSpacing;
 
-            // Mouse image, centered vertically next to cards
+            subscriptionCardsPanel.Size = new Size(cardX - cardSpacing, totalCardHeight);
+
+            // Mouse image
             PictureBox mouseImage = new PictureBox() {
-                Image = Image.FromFile("assets/mouse.png"),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                Size = new Size(200, 200),
-                Location = new Point(subscriptionCardsPanel.Right + 20, subscriptionCardsPanel.Top + (subscriptionCardsPanel.Height - 200) / 2),
+                Size = ScaleSize(new Size(200, 200)),
                 BackColor = Color.Transparent
             };
+
+            try {
+                mouseImage.Image = Image.FromFile("assets/mouse.png");
+            } catch (Exception) {
+                // Create a simple placeholder if image not found
+                Bitmap placeholder = new Bitmap(mouseImage.Width, mouseImage.Height);
+                using (Graphics g = Graphics.FromImage(placeholder)) {
+                    g.Clear(Color.DarkGray);
+                }
+                mouseImage.Image = placeholder;
+            }
+
+            mouseImage.Location = new Point(
+                subscriptionCardsPanel.Right + ScaleSize(20),
+                subscriptionCardsPanel.Top + (subscriptionCardsPanel.Height - mouseImage.Height) / 2
+            );
 
             // Remind Me Later button
             Button remindLaterButton = new Button() {
                 Text = "Remind Me Later",
-                Size = new Size(200, 35),
-                Location = new Point(subscriptionCardsPanel.Left + (subscriptionCardsPanel.Width - 200) / 2, Math.Max(subscriptionCardsPanel.Bottom, mouseImage.Bottom) + 20),
+                Size = ScaleSize(new Size(200, 35)),
                 BackColor = Color.FromArgb(64, 64, 64),
                 ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", ScaleFont(9))
             };
+
+            remindLaterButton.Location = new Point(
+                subscriptionCardsPanel.Left + (subscriptionCardsPanel.Width - remindLaterButton.Width) / 2,
+                Math.Max(subscriptionCardsPanel.Bottom, mouseImage.Bottom) + ScaleSize(20)
+            );
+
+            remindLaterButton.FlatAppearance.BorderSize = 0;
             remindLaterButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(remindLaterButton.BackColor, 0.2f);
+
             remindLaterButton.Click += (s, e) => {
                 _unlockTimer = new System.Windows.Forms.Timer { Interval = _unlockTime };
                 _unlockTimer.Tick += (sender, args) => {
@@ -126,130 +185,159 @@ namespace ClickLimiter {
                 remindLaterButton.Enabled = false;
             };
 
-            // Disclaimer label
-            var disclaimerLabel = new Label {
-                Text = "This is a joke application - use responsibly!",
-                Font = new Font("Segoe UI", 8, FontStyle.Italic),
-                Size = new Size(320, 30),
-                ForeColor = Color.Gray,
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-
-            // Add controls to form
+            // Add all controls
             this.Controls.Add(headerPanel);
             this.Controls.Add(subtext);
             this.Controls.Add(subscriptionCardsPanel);
             this.Controls.Add(mouseImage);
-            this.Controls.Add(disclaimerLabel);
             this.Controls.Add(remindLaterButton);
 
-            // Adjust form height and position disclaimer
-            this.Height = remindLaterButton.Bottom + 40;
-            disclaimerLabel.Location = new Point((this.Width - 320) / 2, this.Height - 35);
+            // Resize form to fit all controls
+            // this.Height = remindLaterButton.Bottom + ScaleSize(40);
+            this.Height = remindLaterButton.Bottom + ScaleSize(20);
 
-            this.FormClosing += (s, e) => _allowClicks = true;
+            // Ensure width is sufficient for all elements
+            this.Width = Math.Max(this.Width, mouseImage.Right + ScaleSize(20));
         }
 
-        private Panel CreatePlanCard(PlanData plan, int yOffset) {
+        private Panel CreatePlanCard(PlanData plan) {
             Panel card = new Panel() {
-                Size = new Size(280, 120), // Initial size, adjusted later
-                Location = new Point(0, yOffset),
+                Size = ScaleSize(new Size(280, 240)), // Start with a height that we'll adjust
                 BackColor = Color.FromArgb(40, 40, 40),
-                BorderStyle = BorderStyle.FixedSingle
+                BorderStyle = BorderStyle.None
             };
 
-            int currentY = 10;
-            int xOffset = 10;
+            int currentY = ScaleSize(10);
+            int xOffset = ScaleSize(10);
 
-            // Crown for premium plan
             if (plan.HasCrown) {
                 PictureBox crownImage = new PictureBox() {
-                    Image = Image.FromFile("assets/crown.png"),
                     SizeMode = PictureBoxSizeMode.Zoom,
-                    Size = new Size(20, 20),
+                    Size = ScaleSize(new Size(20, 20)),
                     Location = new Point(xOffset, currentY),
                     BackColor = Color.Transparent
                 };
+
+                try {
+                    crownImage.Image = Image.FromFile("assets/crown.png");
+                } catch (Exception) {
+                    // Create a simple crown placeholder if image not found
+                    Bitmap crownPlaceholder = new Bitmap(crownImage.Width, crownImage.Height);
+                    using (Graphics g = Graphics.FromImage(crownPlaceholder)) {
+                        g.Clear(Color.Gold);
+                    }
+                    crownImage.Image = crownPlaceholder;
+                }
+
                 card.Controls.Add(crownImage);
-                xOffset += crownImage.Width + 5;
+                xOffset += crownImage.Width + ScaleSize(5);
             }
 
-            // Plan name
             Label planName = new Label() {
                 Text = plan.Name,
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Font = new Font("Segoe UI", ScaleFont(10), FontStyle.Bold),
                 Location = new Point(xOffset, currentY),
                 AutoSize = true
             };
             card.Controls.Add(planName);
-            currentY = planName.Bottom + 5;
+            currentY = planName.Bottom + ScaleSize(5);
 
-            // Price
             Label priceLabel = new Label() {
                 Text = $"${plan.Price}",
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                Location = new Point(10, currentY),
+                Font = new Font("Segoe UI", ScaleFont(20), FontStyle.Bold),
+                Location = new Point(ScaleSize(10), currentY),
                 AutoSize = true
             };
             card.Controls.Add(priceLabel);
 
-            // Price per label
             Label pricePerLabel = new Label() {
                 Text = $"/{plan.PricePer}",
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold), // Larger and bold
-                Location = new Point(priceLabel.Right, currentY),
+                Font = new Font("Segoe UI", ScaleFont(10)),
+                Location = new Point(priceLabel.Right, priceLabel.Top + ScaleSize(4)), // Align with the price
                 AutoSize = true
             };
             card.Controls.Add(pricePerLabel);
-            currentY = priceLabel.Bottom + 5;
+            currentY = priceLabel.Bottom + ScaleSize(10);
 
-            // Features with arrow images
-            int featureX = 10;
-            int arrowSize = 16;
+            int featureX = ScaleSize(10);
+            int arrowSize = ScaleSize(16);
+
             foreach (var feature in plan.Features) {
                 PictureBox arrowPb = new PictureBox() {
                     Image = _arrowImage,
                     SizeMode = PictureBoxSizeMode.Zoom,
                     Size = new Size(arrowSize, arrowSize),
-                    Location = new Point(featureX, currentY),
+                    Location = new Point(featureX, currentY + ScaleSize(2)), // Vertically center with text
                     BackColor = Color.Transparent
                 };
                 card.Controls.Add(arrowPb);
+
                 Label featureLabel = new Label() {
                     Text = feature,
                     ForeColor = Color.LightGray,
-                    Font = new Font("Segoe UI", 9),
-                    Location = new Point(featureX + arrowSize + 5, currentY),
-                    AutoSize = true
+                    Font = new Font("Segoe UI", ScaleFont(9)),
+                    Location = new Point(featureX + arrowSize + ScaleSize(5), currentY),
+                    AutoSize = true,
+                    MaximumSize = new Size(card.Width - featureX - arrowSize - ScaleSize(15), 0) // Allow wrapping
                 };
                 card.Controls.Add(featureLabel);
-                int rowHeight = Math.Max(arrowPb.Height, featureLabel.Height);
-                currentY += rowHeight + 5; // Increased spacing
+
+                currentY += featureLabel.Height + ScaleSize(8);
             }
 
-            // Upgrade button
             Button upgradeButton = new Button() {
                 Text = $"Upgrade to {plan.Name.Replace(" Plan", "")}",
-                Size = new Size(260, 30),
-                Location = new Point(10, currentY + 10),
+                Size = new Size(card.Width - ScaleSize(20), ScaleSize(30)),
+                Location = new Point(ScaleSize(10), currentY + ScaleSize(10)),
                 BackColor = plan.ButtonColor,
                 ForeColor = plan.ButtonTextColor,
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", ScaleFont(9))
             };
+
+            upgradeButton.FlatAppearance.BorderSize = 0;
             upgradeButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(plan.ButtonColor, 0.2f);
+
             upgradeButton.Click += (s, e) => {
-                MessageBox.Show($"Congratulations! You have subscribed to our {plan.Name}.\nEnjoy your premium mouse experience!", "Subscription Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"Congratulations! You have subscribed to our {plan.Name}.\nEnjoy your premium mouse experience!",
+                                "Subscription Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
             };
+
             card.Controls.Add(upgradeButton);
 
-            // Adjust card height
-            card.Height = upgradeButton.Bottom + 10;
+            // Adjust card height to fit content
+            card.Height = upgradeButton.Bottom + ScaleSize(10);
 
             return card;
+        }
+
+        // Helper methods for DPI scaling
+        private int ScaleSize(int size) {
+            return (int)(size * _dpiScaleFactor);
+        }
+
+        private Size ScaleSize(Size size) {
+            return new Size(
+                (int)(size.Width * _dpiScaleFactor),
+                (int)(size.Height * _dpiScaleFactor)
+            );
+        }
+
+        private Point ScalePoint(Point point) {
+            return new Point(
+                (int)(point.X * _dpiScaleFactor),
+                (int)(point.Y * _dpiScaleFactor)
+            );
+        }
+
+        private float ScaleFont(float size) {
+            // Font scaling is a bit different - we don't want to multiply
+            // directly by DPI scale factor as it can make text too large
+            return size; // .NET will handle font scaling appropriately
         }
 
         protected override void WndProc(ref Message m) {
