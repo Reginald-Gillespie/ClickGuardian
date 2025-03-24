@@ -1,0 +1,6 @@
+{
+  "ClickLimit": 5,
+  "UnlockTime": 5000,
+  "BlockClicks": true,
+  "ShowTrayIcon": true
+}
