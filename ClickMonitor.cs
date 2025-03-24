@@ -5,10 +5,8 @@ using System.Windows.Forms;
 using System.IO;
 using Newtonsoft.Json;
 
-namespace ClickLimiter
-{
-    public class AppSettings
-    {
+namespace ClickLimiter {
+    public class AppSettings {
         public int ClickLimit { get; set; } = 5;
         public int UnlockTime { get; set; } = 5000;
         public bool BlockClicks { get; set; } = true;
@@ -16,8 +14,7 @@ namespace ClickLimiter
     }
 
 
-    public class ClickMonitor : ApplicationContext
-    {
+    public class ClickMonitor : ApplicationContext {
         private const int WH_MOUSE_LL = 14;
         private const int WM_LBUTTONDOWN = 0x0201;
         private const int WM_RBUTTONDOWN = 0x0204;
@@ -35,13 +32,11 @@ namespace ClickLimiter
         private string _configFilePath = "config.json";
         private AppSettings _settings;
 
-        public ClickMonitor()
-        {
+        public ClickMonitor() {
             LoadSettings();
 
             // Initialize tray icon based on setting
-            _notifyIcon = new NotifyIcon
-            {
+            _notifyIcon = new NotifyIcon {
                 Icon = SystemIcons.Application,
                 Text = "ClickGuardian",
                 Visible = _showTrayIcon // Initially set visibility based on setting
@@ -62,21 +57,16 @@ namespace ClickLimiter
             _hookId = SetHook(_proc);
         }
 
-        private void LoadSettings()
-        {
-            if (File.Exists(_configFilePath))
-            {
-                try
-                {
+        private void LoadSettings() {
+            if (File.Exists(_configFilePath)) {
+                try {
                     string json = File.ReadAllText(_configFilePath);
                     _settings = JsonConvert.DeserializeObject<AppSettings>(json);
                     _clickLimit = _settings.ClickLimit;
                     _unlockTime = _settings.UnlockTime;
                     _blockClicks = _settings.BlockClicks;
                     _showTrayIcon = _settings.ShowTrayIcon;  // Load tray icon setting
-                }
-                catch (Exception ex)
-                {
+                } catch (Exception ex) {
                     MessageBox.Show($"Error loading settings: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     // Use default values
                     _settings = new AppSettings();
@@ -85,9 +75,7 @@ namespace ClickLimiter
                     _blockClicks = _settings.BlockClicks;
                     _showTrayIcon = _settings.ShowTrayIcon;   // Use default
                 }
-            }
-            else
-            {
+            } else {
                 // Use default values
                 _settings = new AppSettings();
                 _clickLimit = _settings.ClickLimit;
@@ -98,33 +86,25 @@ namespace ClickLimiter
             }
         }
 
-        private void SaveSettings()
-        {
-            try
-            {
+        private void SaveSettings() {
+            try {
                 string json = JsonConvert.SerializeObject(_settings, Formatting.Indented);
                 File.WriteAllText(_configFilePath, json);
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 MessageBox.Show($"Error saving settings: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
+        protected override void Dispose(bool disposing) {
+            if (disposing) {
                 // Clean up tray icon
-                if (_notifyIcon != null)
-                {
+                if (_notifyIcon != null) {
                     _notifyIcon.Visible = false;
                     _notifyIcon.Dispose();
                 }
 
                 // Unhook mouse
-                if (_hookId != IntPtr.Zero)
-                {
+                if (_hookId != IntPtr.Zero) {
                     UnhookWindowsHookEx(_hookId);
                 }
             }
@@ -132,21 +112,17 @@ namespace ClickLimiter
             base.Dispose(disposing);
         }
 
-        private IntPtr SetHook(LowLevelMouseProc proc)
-        {
+        private IntPtr SetHook(LowLevelMouseProc proc) {
             using (var curProcess = System.Diagnostics.Process.GetCurrentProcess())
-            using (var curModule = curProcess.MainModule)
-            {
+            using (var curModule = curProcess.MainModule) {
                 return SetWindowsHookEx(WH_MOUSE_LL, proc, GetModuleHandle(curModule.ModuleName), 0);
             }
         }
 
         private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
 
-        private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
-        {
-            if (nCode >= 0 && (wParam == (IntPtr)WM_LBUTTONDOWN || wParam == (IntPtr)WM_RBUTTONDOWN))
-            {
+        private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
+            if (nCode >= 0 && (wParam == (IntPtr)WM_LBUTTONDOWN || wParam == (IntPtr)WM_RBUTTONDOWN)) {
                 _clickCount++;
 
                 if (_showTrayIcon) // Only update if tray icon is visible
@@ -155,15 +131,12 @@ namespace ClickLimiter
                 }
 
 
-                if (_clickCount >= _clickLimit && !_limitReachedDialogShown)
-                {
+                if (_clickCount >= _clickLimit && !_limitReachedDialogShown) {
                     _limitReachedDialogShown = true;
                     ShowLimitReachedDialog();
                     _clickCount = 0;
                     return _blockClicks ? (IntPtr)1 : CallNextHookEx(_hookId, nCode, wParam, lParam);
-                }
-                else if (_clickCount >= _clickLimit)
-                {
+                } else if (_clickCount >= _clickLimit) {
                     return _blockClicks ? (IntPtr)1 : CallNextHookEx(_hookId, nCode, wParam, lParam);
                 }
             }
@@ -171,25 +144,18 @@ namespace ClickLimiter
             return CallNextHookEx(_hookId, nCode, wParam, lParam);
         }
 
-        private void ShowLimitReachedDialog()
-        {
-            if (_limitForm == null || _limitForm.IsDisposed)
-            {
+        private void ShowLimitReachedDialog() {
+            if (_limitForm == null || _limitForm.IsDisposed) {
                 _limitForm = new LimitReachedForm(_clickLimit, _unlockTime);
                 _limitForm.FormClosed += (s, args) => { _limitReachedDialogShown = false; };
                 _limitForm.Show();
-            }
-            else
-            {
+            } else {
                 _limitForm.BringToFront();
             }
         }
-        private void ShowSettings(object sender, EventArgs e)
-        {
-            using (var form = new SettingsForm(_clickLimit, _unlockTime, _blockClicks, _showTrayIcon))
-            {
-                if (form.ShowDialog() == DialogResult.OK)
-                {
+        private void ShowSettings(object sender, EventArgs e) {
+            using (var form = new SettingsForm(_clickLimit, _unlockTime, _blockClicks, _showTrayIcon)) {
+                if (form.ShowDialog() == DialogResult.OK) {
                     _clickLimit = form.ClickLimit;
                     _unlockTime = form.UnlockTime;
                     _blockClicks = form.BlockClicks;
@@ -204,23 +170,20 @@ namespace ClickLimiter
                     // Update tray icon visibility immediately
                     _notifyIcon.Visible = _showTrayIcon;
 
-                    if (_showTrayIcon)
-                    {
+                    if (_showTrayIcon) {
                         _notifyIcon.Text = $"ClickGuardian ({_clickCount}/{_clickLimit})";  //Update the text now that it is visible
                     }
 
 
                     _clickCount = 0;
-                    if (_showTrayIcon)
-                    {
+                    if (_showTrayIcon) {
                         _notifyIcon.Text = $"ClickGuardian ({_clickCount}/{_clickLimit})";
                     }
                 }
             }
         }
 
-        private void Exit(object sender, EventArgs e)
-        {
+        private void Exit(object sender, EventArgs e) {
             Application.Exit();
         }
 

@@ -22,8 +22,7 @@ namespace ClickLimiter {
         public bool BlockClicks { get; private set; }
         public bool ShowTrayIcon { get; private set; } // NEW: Property for tray icon visibility
 
-        public SettingsForm(int clickLimit, int unlockTime = 5000, bool blockClicks = true, bool showTrayIcon = true)
-        {
+        public SettingsForm(int clickLimit, int unlockTime = 5000, bool blockClicks = true, bool showTrayIcon = true) {
             ClickLimit = clickLimit;
             UnlockTime = unlockTime;
             BlockClicks = blockClicks;
@@ -33,8 +32,7 @@ namespace ClickLimiter {
             LoadSettings();
         }
 
-        private void InitializeComponents()
-        {
+        private void InitializeComponents() {
             this.Text = "Settings";
             this.Size = new System.Drawing.Size(300, 260); // Increased height
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -71,16 +69,14 @@ namespace ClickLimiter {
             this.Controls.Add(_cancelButton);
         }
 
-        private void LoadSettings()
-        {
+        private void LoadSettings() {
             _clickLimitUpDown.Value = ClickLimit;
             _unlockTimeUpDown.Value = UnlockTime;
             _blockClicksCheckBox.Checked = BlockClicks;
             _showTrayIconCheckBox.Checked = ShowTrayIcon; // Load tray icon setting
         }
 
-        private void SaveButton_Click(object sender, EventArgs e)
-        {
+        private void SaveButton_Click(object sender, EventArgs e) {
             ClickLimit = (int)_clickLimitUpDown.Value;
             UnlockTime = (int)_unlockTimeUpDown.Value;
             BlockClicks = _blockClicksCheckBox.Checked;
