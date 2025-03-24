@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.IO;
 
@@ -18,6 +20,25 @@ namespace ClickLimiter {
         private float _dpiScaleFactor = 1.0f;
         private Button _remindLaterButton;
         public event Action OnLimitReset;
+
+        private void OpenUrl(string url) {
+            try {
+                System.Diagnostics.Process.Start(url);
+            } catch {
+                // hack because of this: https://github.com/dotnet/corefx/issues/10361
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+                    url = url.Replace("&", "^&");
+                    System.Diagnostics.Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                } else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
+                    Process.Start("xdg-open", url);
+                } else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
+                    System.Diagnostics.Process.Start("open", url);
+                } else {
+                    throw;
+                }
+            }
+        }
+
 
         private Image LoadSvgAsBitmap(string filePath, int width, int height) {
             try {
@@ -251,13 +272,15 @@ namespace ClickLimiter {
             _remindLaterButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(_remindLaterButton.BackColor, 0.2f);
 
             _remindLaterButton.Click += (s, e) => {
-                _unlockTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+                // Assuming _unlockTime is in milliseconds, e.g. 5000 for a 5 second countdown.
                 int remainingTime = _unlockTime / 1000;
+
+                _unlockTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+
                 _unlockTimer.Tick += (sender, args) => {
+                    remainingTime--; // Decrement first
                     if (remainingTime > 0) {
                         _remindLaterButton.Text = $"Unlocking in {remainingTime}s...";
-                        _remindLaterButton.ForeColor = Color.White; // Ensure text remains visible
-                        remainingTime--;
                     } else {
                         _unlockTimer.Stop();
                         OnLimitReset?.Invoke();
@@ -267,6 +290,7 @@ namespace ClickLimiter {
                 _unlockTimer.Start();
                 _remindLaterButton.Text = $"Unlocking in {_unlockTime / 1000}s...";
                 _remindLaterButton.ForeColor = Color.White; // Ensure initial color
+                _remindLaterButton.UseVisualStyleBackColor = false;
                 _remindLaterButton.Enabled = false;
             };
 
@@ -434,7 +458,7 @@ namespace ClickLimiter {
                 // MessageBox.Show($"Congratulations! You have subscribed to our {plan.Name}.\nEnjoy your premium mouse experience!",
                 //                 "Subscription Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                System.Diagnostics.Process.Start("https://example.com/");
+                OpenUrl("https://example.com/");
                 OnLimitReset?.Invoke();
                 this.Close();
             };

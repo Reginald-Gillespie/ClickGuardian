@@ -1,10 +1,10 @@
 {
-  "ClickLimit": 15,
-  "GracePeriod": 10,
-  "UnlockTime": 5000,
+  "ClickLimit": 5,
+  "GracePeriod": 5,
+  "UnlockTime": 3000,
   "BlockClicks": true,
   "ShowTrayIcon": true,
-  "ShowExitButton": true,
+  "ShowExitButton": false,
 
   "CurrentClickCount": 0,
   "LastResetYear": 0,
