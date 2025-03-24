@@ -12,6 +12,9 @@ namespace ClickLimiter {
             Application.SetCompatibleTextRenderingDefault(false);
             Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
 
+            // When started from elsewhere like by the system, move where assets and files are
+            Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
+
             // Force smooth text rendering globally
             Application.Run(new ClickMonitor());
         }

@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <ApplicationIcon>assets\tray.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,5 +31,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
 
 </Project>

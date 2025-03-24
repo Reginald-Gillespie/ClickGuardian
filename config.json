@@ -5,8 +5,7 @@
   "BlockClicks": true,
   "ShowTrayIcon": true,
   "ShowExitButton": false,
-
-  "CurrentClickCount": 0,
-  "LastResetYear": 0,
-  "LastResetMonth": 0
+  "CurrentClickCount": 4,
+  "LastResetYear": 2025,
+  "LastResetMonth": 3
 }

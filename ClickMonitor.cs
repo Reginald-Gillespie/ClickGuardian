@@ -4,6 +4,9 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.IO;
 using Newtonsoft.Json;
+using Microsoft.Win32;
+using System.Reflection;
+
 
 namespace ClickLimiter {
     public class AppSettings {
@@ -39,7 +42,23 @@ namespace ClickLimiter {
         private string _configFilePath = "config.json";
         private AppSettings _settings;
 
+        private const string StartupKeyName = "ClickGuardian";
+
+        private void EnsureStartup() {
+            string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true)) {
+                if (key != null) {
+                    object existingValue = key.GetValue(StartupKeyName);
+
+                    if (existingValue == null || existingValue.ToString() != $"\"{exePath}\"") {
+                        key.SetValue(StartupKeyName, $"\"{exePath}\""); // Ensures correct quoting for paths with spaces
+                    }
+                }
+            }
+        }
         public ClickMonitor() {
+            EnsureStartup();
             LoadSettings();
 
             _notifyIcon = new NotifyIcon {
