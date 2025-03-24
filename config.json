@@ -1,6 +1,12 @@
 {
-  "ClickLimit": 5,
+  "ClickLimit": 15,
+  "GracePeriod": 10,
   "UnlockTime": 5000,
   "BlockClicks": true,
-  "ShowTrayIcon": true
+  "ShowTrayIcon": true,
+  "ShowExitButton": true,
+
+  "CurrentClickCount": 0,
+  "LastResetYear": 0,
+  "LastResetMonth": 0
 }

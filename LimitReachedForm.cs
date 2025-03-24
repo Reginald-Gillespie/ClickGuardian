@@ -2,15 +2,76 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using System.IO;
+
+using SkiaSharp;
+using Svg.Skia; // Note: using Svg.Skia instead of SkiaSharp.Extended.Svg
+using SkiaSharp.Views.Desktop; // For Extensions.ToBitmap
 
 namespace ClickLimiter {
     public class LimitReachedForm : Form {
         private System.Windows.Forms.Timer _unlockTimer;
+        private int _remainingTime;
         private bool _allowClicks = false;
         private int _unlockTime;
         private Image _arrowImage;
         private float _dpiScaleFactor = 1.0f;
+        private Button _remindLaterButton;
+        public event Action OnLimitReset;
 
+        private Image LoadSvgAsBitmap(string filePath, int width, int height) {
+            try {
+                // Check if file exists first
+                if (!File.Exists(filePath)) {
+                    return CreatePlaceholderBitmap(width, height, "File not found");
+                }
+
+                using (var stream = File.OpenRead(filePath)) {
+                    var svg = new SKSvg();
+                    svg.Load(stream);
+
+                    // Check if SVG loaded successfully
+                    if (svg.Picture == null) {
+                        return CreatePlaceholderBitmap(width, height, "SVG is invalid");
+                    }
+                    if (svg.Picture.CullRect.IsEmpty) {
+                        return CreatePlaceholderBitmap(width, height, "SVG is empty");
+                    }
+
+                    // Render the SVG
+                    SKRect bounds = svg.Picture.CullRect;
+                    float scale = Math.Min((float)width / bounds.Width, (float)height / bounds.Height);
+                    var skBitmap = new SKBitmap(width, height);
+                    using (var canvas = new SKCanvas(skBitmap)) {
+                        canvas.Clear(SKColors.Transparent);
+                        float translateX = (width - bounds.Width * scale) / 2f;
+                        float translateY = (height - bounds.Height * scale) / 2f;
+                        canvas.Translate(translateX, translateY);
+                        canvas.Scale(scale);
+                        canvas.DrawPicture(svg.Picture);
+                    }
+                    using (var skImage = SKImage.FromBitmap(skBitmap)) {
+                        return skImage.ToBitmap();
+                    }
+                }
+            } catch (Exception ex) {
+                return CreatePlaceholderBitmap(width, height, $"Error: {ex.Message}");
+            }
+        }
+
+        // Helper method to create a visible placeholder
+        private Bitmap CreatePlaceholderBitmap(int width, int height, string message) {
+            Bitmap placeholder = new Bitmap(width, height);
+            using (Graphics g = Graphics.FromImage(placeholder)) {
+                g.Clear(Color.DarkGray);
+                // Optional: Add text for debugging
+                using (Font font = new Font("Arial", 10))
+                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }) {
+                    g.DrawString(message, font, Brushes.White, new RectangleF(0, 0, width, height), sf);
+                }
+            }
+            return placeholder;
+        }
         private List<PlanData> _plans = new List<PlanData>() {
             new PlanData {
                 Name = "Standard Plan",
@@ -25,7 +86,7 @@ namespace ClickLimiter {
                 Price = "17.99",
                 PricePer = "month",
                 Features = new List<string> { "Unlimited clicks", "Unlimited mouse wheel usage", "Custom button mappings", "Priority support" },
-                ButtonColor = Color.FromArgb(0, 150, 136),
+                ButtonColor = Color.FromArgb(0, 200, 180),
                 ButtonTextColor = Color.White,
                 HasCrown = true
             }
@@ -33,6 +94,7 @@ namespace ClickLimiter {
 
         public LimitReachedForm(int clickLimit, int unlockTime) {
             _unlockTime = unlockTime;
+            _remainingTime = unlockTime / 1000;
 
             // Set DPI awareness
             this.AutoScaleDimensions = new SizeF(96F, 96F);
@@ -53,9 +115,18 @@ namespace ClickLimiter {
 
             this.FormBorderStyle = FormBorderStyle.None;
             this.Size = ScaleSize(new Size(880, 400));
-            this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(30, 30, 30);
             this.TopMost = true;
+
+            // Force center
+            // this.StartPosition = FormStartPosition.CenterScreen;
+            this.StartPosition = FormStartPosition.Manual;
+            this.Location = new Point(
+                (Screen.PrimaryScreen.WorkingArea.Width - this.Width) / 2,
+                (Screen.PrimaryScreen.WorkingArea.Height - this.Height) / 2
+            );
+            this.Icon = new Icon("assets/tray.ico"); // Set window icon
+
 
             // Handle DPI changes
             this.DpiChanged += (s, e) => {
@@ -105,7 +176,7 @@ namespace ClickLimiter {
 
             // Subtext
             Label subtext = new Label() {
-                Text = $"You have reached the maximum number of clicks allowed ({clickLimit}).\nTo continue using your mouse, please upgrade to a plan.",
+                Text = $"You have reached the maximum number of clicks allowed ({clickLimit}) for this month.\nTo continue using your mouse without interruption, please upgrade to a monthly subscription.",
                 ForeColor = Color.FromArgb(200, 200, 200),
                 Font = new Font("Segoe UI", ScaleFont(9)),
                 Location = new Point(20, headerPanel.Bottom + ScaleSize(20)),
@@ -126,7 +197,7 @@ namespace ClickLimiter {
             List<Panel> cardPanels = new List<Panel>();
             List<Button> upgradeButtons = new List<Button>();
             int maxCardContentHeight = 0;
-            
+
             foreach (var plan in _plans) {
                 // Create the card but don't set final height yet
                 Panel card = CreatePlanCard(plan, out Button upgradeButton, out int contentHeight);
@@ -141,40 +212,73 @@ namespace ClickLimiter {
             int cardSpacing = ScaleSize(10);
             int buttonHeight = ScaleSize(30);
             int buttonMargin = ScaleSize(10);
-            
+
             // Calculate total card height including button and margins
             int totalCardHeight = maxCardContentHeight + buttonHeight + (2 * buttonMargin);
 
             for (int i = 0; i < cardPanels.Count; i++) {
                 Panel card = cardPanels[i];
                 Button button = upgradeButtons[i];
-                
+
                 // Set the same total height for all cards
                 card.Height = totalCardHeight;
                 card.Width = cardWidth;
                 card.Location = new Point(cardX, 0);
-                
+
                 // Fix #2: Position the button at the bottom of the card
                 button.Location = new Point(
-                    buttonMargin, 
+                    buttonMargin,
                     totalCardHeight - buttonHeight - buttonMargin
                 );
-                
+
                 subscriptionCardsPanel.Controls.Add(card);
                 cardX += card.Width + cardSpacing;
             }
 
             subscriptionCardsPanel.Size = new Size(cardX - cardSpacing, totalCardHeight);
 
-            // Mouse image
+            // Remind Me Later button
+            _remindLaterButton = new Button() {
+                Text = "Remind Me Later",
+                Size = ScaleSize(new Size(200, 35)),
+                BackColor = Color.FromArgb(64, 64, 64),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", ScaleFont(9))
+            };
+
+            _remindLaterButton.FlatAppearance.BorderSize = 0;
+            _remindLaterButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(_remindLaterButton.BackColor, 0.2f);
+
+            _remindLaterButton.Click += (s, e) => {
+                _unlockTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+                int remainingTime = _unlockTime / 1000;
+                _unlockTimer.Tick += (sender, args) => {
+                    if (remainingTime > 0) {
+                        _remindLaterButton.Text = $"Unlocking in {remainingTime}s...";
+                        _remindLaterButton.ForeColor = Color.White; // Ensure text remains visible
+                        remainingTime--;
+                    } else {
+                        _unlockTimer.Stop();
+                        OnLimitReset?.Invoke();
+                        this.Close();
+                    }
+                };
+                _unlockTimer.Start();
+                _remindLaterButton.Text = $"Unlocking in {_unlockTime / 1000}s...";
+                _remindLaterButton.ForeColor = Color.White; // Ensure initial color
+                _remindLaterButton.Enabled = false;
+            };
+
+            // Mouse image - Increased size
             PictureBox mouseImage = new PictureBox() {
                 SizeMode = PictureBoxSizeMode.Zoom,
-                Size = ScaleSize(new Size(200, 200)),
+                Size = ScaleSize(new Size(300, 300)), // Larger mouse image
                 BackColor = Color.Transparent
             };
 
             try {
-                mouseImage.Image = Image.FromFile("assets/mouse.png");
+                mouseImage.Image = LoadSvgAsBitmap("assets/mouse.svg", ScaleSize(300), ScaleSize(300));
             } catch (Exception) {
                 // Create a simple placeholder if image not found
                 Bitmap placeholder = new Bitmap(mouseImage.Width, mouseImage.Height);
@@ -184,49 +288,33 @@ namespace ClickLimiter {
                 mouseImage.Image = placeholder;
             }
 
+            // Position remind later button
+            _remindLaterButton.Location = new Point(
+                subscriptionCardsPanel.Left + (subscriptionCardsPanel.Width - _remindLaterButton.Width) / 2,
+                subscriptionCardsPanel.Bottom + ScaleSize(20)
+            );
+
+            // Position mouse image to take up the full right side
+            int mouseY = headerPanel.Bottom + ScaleSize(20);
+            int mouseHeight = _remindLaterButton.Bottom - mouseY;
+            mouseImage.Size = new Size(ScaleSize(300), mouseHeight);
+
+            // Center mouse image on right side with less buffer space
+            int availableRightSpace = this.Width - subscriptionCardsPanel.Right - ScaleSize(20);
             mouseImage.Location = new Point(
-                subscriptionCardsPanel.Right + ScaleSize(20),
-                subscriptionCardsPanel.Top + (subscriptionCardsPanel.Height - mouseImage.Height) / 2
+                subscriptionCardsPanel.Right + ScaleSize(20) + (availableRightSpace - mouseImage.Width) / 2,
+                mouseY + (mouseHeight - mouseImage.Height) / 2
             );
-
-            // Remind Me Later button
-            Button remindLaterButton = new Button() {
-                Text = "Remind Me Later",
-                Size = ScaleSize(new Size(200, 35)),
-                BackColor = Color.FromArgb(64, 64, 64),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", ScaleFont(9))
-            };
-
-            remindLaterButton.Location = new Point(
-                subscriptionCardsPanel.Left + (subscriptionCardsPanel.Width - remindLaterButton.Width) / 2,
-                Math.Max(subscriptionCardsPanel.Bottom, mouseImage.Bottom) + ScaleSize(20)
-            );
-
-            remindLaterButton.FlatAppearance.BorderSize = 0;
-            remindLaterButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(remindLaterButton.BackColor, 0.2f);
-
-            remindLaterButton.Click += (s, e) => {
-                _unlockTimer = new System.Windows.Forms.Timer { Interval = _unlockTime };
-                _unlockTimer.Tick += (sender, args) => {
-                    _unlockTimer.Stop();
-                    this.Close();
-                };
-                _unlockTimer.Start();
-                remindLaterButton.Text = $"Unlocking in {_unlockTime / 1000}s...";
-                remindLaterButton.Enabled = false;
-            };
 
             // Add all controls
             this.Controls.Add(headerPanel);
             this.Controls.Add(subtext);
             this.Controls.Add(subscriptionCardsPanel);
             this.Controls.Add(mouseImage);
-            this.Controls.Add(remindLaterButton);
+            this.Controls.Add(_remindLaterButton);
 
             // Resize form to fit all controls
-            this.Height = remindLaterButton.Bottom + ScaleSize(20);
+            this.Height = _remindLaterButton.Bottom + ScaleSize(20);
 
             // Ensure width is sufficient for all elements
             this.Width = Math.Max(this.Width, mouseImage.Right + ScaleSize(20));
@@ -291,13 +379,13 @@ namespace ClickLimiter {
                 AutoSize = true
             };
             card.Controls.Add(pricePerLabel);
-            
+
             // Position at the bottom of the price label instead of at the top
             pricePerLabel.Location = new Point(
                 priceLabel.Right,
                 priceLabel.Bottom - pricePerLabel.Height - ScaleSize(2)
             );
-            
+
             currentY = priceLabel.Bottom + ScaleSize(10);
 
             int featureX = ScaleSize(10);
@@ -343,13 +431,16 @@ namespace ClickLimiter {
             upgradeButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(plan.ButtonColor, 0.2f);
 
             upgradeButton.Click += (s, e) => {
-                MessageBox.Show($"Congratulations! You have subscribed to our {plan.Name}.\nEnjoy your premium mouse experience!",
-                                "Subscription Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // MessageBox.Show($"Congratulations! You have subscribed to our {plan.Name}.\nEnjoy your premium mouse experience!",
+                //                 "Subscription Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                System.Diagnostics.Process.Start("https://example.com/");
+                OnLimitReset?.Invoke();
                 this.Close();
             };
 
             card.Controls.Add(upgradeButton);
-            
+
             return card;
         }
 

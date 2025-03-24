@@ -7,12 +7,16 @@ using Newtonsoft.Json;
 
 namespace ClickLimiter {
     public class AppSettings {
-        public int ClickLimit { get; set; } = 5;
+        public int ClickLimit { get; set; } = 10;
+        public int GracePeriod { get; set; } = 8;
         public int UnlockTime { get; set; } = 5000;
         public bool BlockClicks { get; set; } = true;
-        public bool ShowTrayIcon { get; set; } = true; // Default to show tray icon
+        public bool ShowTrayIcon { get; set; } = true;
+        public bool ShowExitButton { get; set; } = true;
+        public int CurrentClickCount { get; set; } = 0;
+        public int LastResetYear { get; set; } = DateTime.Now.Year;
+        public int LastResetMonth { get; set; } = DateTime.Now.Month;
     }
-
 
     public class ClickMonitor : ApplicationContext {
         private const int WH_MOUSE_LL = 14;
@@ -23,36 +27,33 @@ namespace ClickLimiter {
         private int _clickLimit;
         private int _unlockTime;
         private bool _blockClicks;
-        private bool _showTrayIcon;   // Add field for show tray icon setting
+        private bool _showTrayIcon;
+        private bool _showExitButton;
+        private int _gracePeriod;
         private NotifyIcon _notifyIcon;
         private IntPtr _hookId = IntPtr.Zero;
         private LowLevelMouseProc _proc;
         private LimitReachedForm _limitForm;
         private bool _limitReachedDialogShown = false;
+        private bool _blockingClicks = false;
         private string _configFilePath = "config.json";
         private AppSettings _settings;
 
         public ClickMonitor() {
             LoadSettings();
 
-            // Initialize tray icon based on setting
             _notifyIcon = new NotifyIcon {
-                Icon = SystemIcons.Application,
-                Text = "ClickGuardian",
-                Visible = _showTrayIcon // Initially set visibility based on setting
+                Icon = new Icon("assets/tray.ico"),
+                Text = $"ClickGuardian ({_clickCount}/{_clickLimit})",
+                Visible = _showTrayIcon
             };
 
-            if (_showTrayIcon)  //Only create the menu if we're showing the tray icon
-            {
-                // Create context menu for tray icon
+            if (_showTrayIcon && _showExitButton) {
                 var menu = new ContextMenuStrip();
-                menu.Items.Add("Settings", null, ShowSettings);
                 menu.Items.Add("Exit", null, Exit);
                 _notifyIcon.ContextMenuStrip = menu;
             }
 
-
-            // Set up mouse hook
             _proc = HookCallback;
             _hookId = SetHook(_proc);
         }
@@ -62,26 +63,41 @@ namespace ClickLimiter {
                 try {
                     string json = File.ReadAllText(_configFilePath);
                     _settings = JsonConvert.DeserializeObject<AppSettings>(json);
+                    // Check if the month has changed since the last reset
+                    var now = DateTime.Now;
+                    if (_settings.LastResetYear != now.Year || _settings.LastResetMonth != now.Month) {
+                        _settings.CurrentClickCount = 0;
+                        _settings.LastResetYear = now.Year;
+                        _settings.LastResetMonth = now.Month;
+                        SaveSettings(); // Save the reset state
+                    }
+                    _clickCount = _settings.CurrentClickCount;
                     _clickLimit = _settings.ClickLimit;
                     _unlockTime = _settings.UnlockTime;
                     _blockClicks = _settings.BlockClicks;
-                    _showTrayIcon = _settings.ShowTrayIcon;  // Load tray icon setting
+                    _showTrayIcon = _settings.ShowTrayIcon;
+                    _showExitButton = _settings.ShowExitButton;
+                    _gracePeriod = _settings.GracePeriod;
                 } catch (Exception ex) {
                     MessageBox.Show($"Error loading settings: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    // Use default values
                     _settings = new AppSettings();
+                    _clickCount = _settings.CurrentClickCount;
                     _clickLimit = _settings.ClickLimit;
                     _unlockTime = _settings.UnlockTime;
                     _blockClicks = _settings.BlockClicks;
-                    _showTrayIcon = _settings.ShowTrayIcon;   // Use default
+                    _showTrayIcon = _settings.ShowTrayIcon;
+                    _showExitButton = _settings.ShowExitButton;
+                    _gracePeriod = _settings.GracePeriod;
                 }
             } else {
-                // Use default values
                 _settings = new AppSettings();
+                _clickCount = _settings.CurrentClickCount;
                 _clickLimit = _settings.ClickLimit;
                 _unlockTime = _settings.UnlockTime;
                 _blockClicks = _settings.BlockClicks;
-                _showTrayIcon = _settings.ShowTrayIcon;   // Use default
+                _showTrayIcon = _settings.ShowTrayIcon;
+                _showExitButton = _settings.ShowExitButton;
+                _gracePeriod = _settings.GracePeriod;
                 SaveSettings();
             }
         }
@@ -97,18 +113,14 @@ namespace ClickLimiter {
 
         protected override void Dispose(bool disposing) {
             if (disposing) {
-                // Clean up tray icon
                 if (_notifyIcon != null) {
                     _notifyIcon.Visible = false;
                     _notifyIcon.Dispose();
                 }
-
-                // Unhook mouse
                 if (_hookId != IntPtr.Zero) {
                     UnhookWindowsHookEx(_hookId);
                 }
             }
-
             base.Dispose(disposing);
         }
 
@@ -119,67 +131,75 @@ namespace ClickLimiter {
             }
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT {
+            public int x;
+            public int y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MSLLHOOKSTRUCT {
+            public POINT pt;
+            public uint mouseData;
+            uint flags;
+            uint time;
+            public IntPtr dwExtraInfo;
+        }
+
         private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
 
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
             if (nCode >= 0 && (wParam == (IntPtr)WM_LBUTTONDOWN || wParam == (IntPtr)WM_RBUTTONDOWN)) {
-                _clickCount++;
+                MSLLHOOKSTRUCT hookStruct = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                Point mousePos = new Point(hookStruct.pt.x, hookStruct.pt.y);
 
-                if (_showTrayIcon) // Only update if tray icon is visible
-                {
+                // Check if the month has changed before incrementing
+                var now = DateTime.Now;
+                if (now.Year != _settings.LastResetYear || now.Month != _settings.LastResetMonth) {
+                    _clickCount = 0;
+                    _settings.CurrentClickCount = 0;
+                    _settings.LastResetYear = now.Year;
+                    _settings.LastResetMonth = now.Month;
+                    SaveSettings();
+                }
+
+                _clickCount++;
+                _settings.CurrentClickCount = _clickCount;
+                SaveSettings(); // Save the updated click count
+
+                if (_showTrayIcon) {
                     _notifyIcon.Text = $"ClickGuardian ({_clickCount}/{_clickLimit})";
                 }
 
+                if (_blockingClicks && _blockClicks) {
+                    if (_limitForm != null && _limitForm.Visible && _limitForm.Bounds.Contains(mousePos)) {
+                        return CallNextHookEx(_hookId, nCode, wParam, lParam);
+                    }
+                    return (IntPtr)1; // Block the click
+                }
 
                 if (_clickCount >= _clickLimit && !_limitReachedDialogShown) {
                     _limitReachedDialogShown = true;
+                    _blockingClicks = true;
                     ShowLimitReachedDialog();
-                    _clickCount = 0;
-                    return _blockClicks ? (IntPtr)1 : CallNextHookEx(_hookId, nCode, wParam, lParam);
-                } else if (_clickCount >= _clickLimit) {
-                    return _blockClicks ? (IntPtr)1 : CallNextHookEx(_hookId, nCode, wParam, lParam);
                 }
             }
-
             return CallNextHookEx(_hookId, nCode, wParam, lParam);
         }
 
         private void ShowLimitReachedDialog() {
             if (_limitForm == null || _limitForm.IsDisposed) {
                 _limitForm = new LimitReachedForm(_clickLimit, _unlockTime);
+                _limitForm.OnLimitReset += () => {
+                    _blockingClicks = false;
+                    _clickCount = Math.Max(0, _clickLimit - _gracePeriod); // Apply GracePeriod
+                    _settings.CurrentClickCount = _clickCount;
+                    SaveSettings(); // Save the updated click count after reset
+                };
                 _limitForm.FormClosed += (s, args) => { _limitReachedDialogShown = false; };
                 _limitForm.Show();
             } else {
                 _limitForm.BringToFront();
-            }
-        }
-        private void ShowSettings(object sender, EventArgs e) {
-            using (var form = new SettingsForm(_clickLimit, _unlockTime, _blockClicks, _showTrayIcon)) {
-                if (form.ShowDialog() == DialogResult.OK) {
-                    _clickLimit = form.ClickLimit;
-                    _unlockTime = form.UnlockTime;
-                    _blockClicks = form.BlockClicks;
-                    _showTrayIcon = form.ShowTrayIcon;  // Save new tray icon setting
-
-                    _settings.ClickLimit = _clickLimit;
-                    _settings.UnlockTime = _unlockTime;
-                    _settings.BlockClicks = _blockClicks;
-                    _settings.ShowTrayIcon = _showTrayIcon;  // Save tray icon setting
-                    SaveSettings();
-
-                    // Update tray icon visibility immediately
-                    _notifyIcon.Visible = _showTrayIcon;
-
-                    if (_showTrayIcon) {
-                        _notifyIcon.Text = $"ClickGuardian ({_clickCount}/{_clickLimit})";  //Update the text now that it is visible
-                    }
-
-
-                    _clickCount = 0;
-                    if (_showTrayIcon) {
-                        _notifyIcon.Text = $"ClickGuardian ({_clickCount}/{_clickLimit})";
-                    }
-                }
             }
         }
 
