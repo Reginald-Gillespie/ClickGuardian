@@ -1,5 +1,5 @@
 {
-  "ClickLimit": 5,
+  "ClickLimit": 1000,
   "GracePeriod": 300,
   "UnlockTime": 5000,
   "BlockClicks": true,

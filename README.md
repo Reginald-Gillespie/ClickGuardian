@@ -29,7 +29,7 @@ Join the **movement** towards a more responsible, pay-as-you-click future!
 <br>
 <br>
 
-## Wait, Wut?
+# Wait, Wut?
 
 Ok, actually. ClickGuardian is a prank program designed to troll your friends and colleagues by tacking their mouse clicks and displaying a paywall when they surpass a configured limit. It is 100% free.
 
@@ -53,6 +53,10 @@ Under `config.json`, you can change these fields:
 <br>
 <br>
 <br>
+
+## Install
+See [Install.md](Install.md) for installation instructions.
+
 
 Just want to see what it looks like? Set the config to allow 5 clicks, run it, click 5 times.
 
