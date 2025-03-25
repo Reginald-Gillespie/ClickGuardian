@@ -55,7 +55,7 @@ Under `config.json`, you can change these fields:
 <br>
 
 ## Install
-See [Install.md](Install.md) for installation instructions.
+See [INSTALL.md](INSTALL.md) for installation instructions.
 
 
 Just want to see what it looks like? Set the config to allow 5 clicks, run it, click 5 times.
